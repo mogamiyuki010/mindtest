@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>飲料人格測驗 - 結果</title>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
+      background: linear-gradient(160deg,#F7E6DC 0%, #EAE0D7 100%);
+      color:#6B5D54;
+    }
+    .wrap{max-width:760px;margin:0 auto;padding:20px}
+    .card{margin-top:24px;background:#fff;border-radius:20px;box-shadow:0 12px 30px rgba(0,0,0,.08);padding:28px}
+    .result-img{font-size:120px;text-align:center;margin:6px 0 12px}
+    .result-title{font-size:30px;font-weight:800;text-align:center;margin-bottom:10px}
+    .chips{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+    .chip{background:#F6E8E5;color:#8A6A66;border-radius:999px;padding:6px 12px;font-size:12px}
+    .desc{max-width:620px;margin:10px auto 6px;text-align:center;color:#8C7F77;line-height:1.8}
+    .cta{display:flex;flex-direction:column;gap:12px;margin:20px auto 30px;max-width:520px}
+    .btn{padding:14px;border:none;border-radius:14px;font-weight:700;font-size:16px;cursor:pointer;transition:transform .2s, box-shadow .2s}
+    .btn-primary{background:#FFB4AE;color:#fff;box-shadow:0 8px 20px rgba(255,180,174,.4)}
+    .btn-plain{background:#F3F1EF;color:#6B5D54}
+    .btn:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.08)}
+    .center{display:flex;justify-content:center;align-items:center}
+
+    /* 置中下滑提示：可愛圓形+箭頭動畫，滾動後自動消失 */
+    .scroll-hint{
+      position:fixed; left:50%; top:56%; transform:translate(-50%,-50%);
+      width:120px; height:120px; border-radius:50%;
+      background: rgba(255,255,255,.9); box-shadow:0 6px 20px rgba(0,0,0,.1);
+      display:flex;flex-direction:column;align-items:center;justify-content:center; gap:6px;
+      z-index:1000; animation: pop .25s ease-out;
+    }
+    .scroll-hint .arrow{font-size:20px; animation: bob 1.2s ease-in-out infinite}
+    .scroll-hint .txt{font-size:13px;color:#9B8D84}
+    @keyframes bob{0%{transform:translateY(0)}50%{transform:translateY(6px)}100%{transform:translateY(0)}}
+    @keyframes pop{from{transform:translate(-50%,-50%) scale(.88);opacity:.5}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+
+    /* 重新測驗按鈕置中容器，避免跑版 */
+    .restart-wrap{display:flex;justify-content:center;margin-bottom:40px}
+    .restart-wrap .btn{min-width:220px;text-align:center}
+    @media (max-width:520px){.card{padding:20px}.result-title{font-size:24px}}
+  </style>
+</head>
+<body>
+  <!-- 置中下滑提示 -->
+  <div class="scroll-hint" id="scrollHint" aria-hidden="true">
+    <div class="arrow">⬇</div>
+    <div class="txt">下滑看結果</div>
+  </div>
+
+  <div class="wrap">
+    <!-- 可以截圖的區塊 -->
+    <div class="card" id="captureArea">
+      <div class="result-img" id="emoji">🧋</div>
+      <div class="result-title" id="title">你是「珍珠奶茶」型！</div>
+      <div class="chips" id="chips"></div>
+      <div class="desc" id="desc">描述…</div>
+    </div>
+
+    <div class="cta">
+      <button class="btn btn-primary" id="saveBtn">儲存圖片</button>
+      <button class="btn btn-plain"   id="copyBtn">複製測驗連結</button>
+    </div>
+
+    <!-- 重新測驗：置中不跑版 -->
+    <div class="restart-wrap">
+      <a class="btn btn-plain center" href="./index.html" id="restartBtn">重新測驗</a>
+    </div>
+  </div>
+
+  <script src="./public/tracker.js"></script>
+  <script>
+    // 讀取 sessionStorage，沒有就回首頁
+    const raw = sessionStorage.getItem('quiz_result');
+    if(!raw){
+      location.replace('./index.html');
+    }
+    const data = raw ? JSON.parse(raw) : null;
+
+    // 填資料
+    const meta = data.meta;
+    document.getElementById('emoji').textContent = meta.emoji;
+    document.getElementById('title').textContent = `你是「${data.name}」型！`;
+    document.getElementById('desc').textContent  = meta.desc;
+    document.getElementById('chips').innerHTML  = meta.tags.map(t=>`<span class="chip">${t}</span>`).join('');
+
+    // Tracker（可選）
+    window.Tracker?.init?.();
+    window.Tracker?.track?.('page_view',{ page:'result', title:'飲料人格測驗 - 結果', result:data.name });
+
+    // 下滑提示：使用者一有滾動就消失
+    const hint = document.getElementById('scrollHint');
+    const hideHint = ()=> hint.style.display='none';
+    let hinted = false;
+    window.addEventListener('scroll', ()=>{
+      if(!hinted && window.scrollY > 12){ hinted=true; hideHint(); }
+    }, { passive:true });
+    // 若使用者 2.5 秒內沒有滾動，也自動隱藏
+    setTimeout(hideHint, 2500);
+
+    // 儲存圖片
+    document.getElementById('saveBtn').onclick = async ()=>{
+      const node = document.getElementById('captureArea');
+      const canvas = await html2canvas(node, {scale:2, backgroundColor:null});
+      const a = document.createElement('a');
+      a.download = `我的飲料人格-${data.name}.png`;
+      a.href = canvas.toDataURL('image/png'); a.click();
+      window.Tracker?.track?.('result_save_image',{ result: data.name });
+    };
+
+    // 複製分享連結（帶結果參數 r）
+    document.getElementById('copyBtn').onclick = async ()=>{
+      const url = new URL(location.href);
+      url.searchParams.set('r', encodeURIComponent(data.name));
+      try{
+        await navigator.clipboard.writeText(url.toString());
+        toast('已複製分享連結！');
+        window.Tracker?.track?.('copy_share_link',{ result: data.name });
+      }catch{
+        prompt('複製這段分享連結：', url.toString());
+      }
+    };
+
+    // 小小 toast
+    function toast(msg){
+      let t = document.getElementById('toast');
+      if(!t){
+        t=document.createElement('div'); t.id='toast';
+        t.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;z-index:9999;opacity:0;transition:opacity .2s';
+        document.body.appendChild(t);
+      }
+      t.textContent=msg; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1500);
+    }
+  </script>
+</body>
+</html>

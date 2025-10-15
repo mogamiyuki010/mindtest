@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>飲料人格測驗 - 測驗中</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{ --bg: linear-gradient(160deg,#F7E6DC 0%, #EAE0D7 100%); }
+    body{
+      font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
+      color:#6B5D54; min-height:100vh; padding:20px;
+      background: var(--bg); transition: background 600ms ease;
+    }
+    .quiz-container{max-width:640px;margin:0 auto;background:#fff;border-radius:20px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+    .progress-bar{width:100%;height:8px;background:#E8D5C4;border-radius:4px;margin-bottom:30px;overflow:hidden}
+    .progress-fill{height:100%;background:linear-gradient(135deg,#FFB4AE 0%,#F4A6A0 100%);border-radius:4px;transition:width .3s}
+    .question-number{font-size:14px;color:#9B8D84;margin-bottom:10px}
+    .question{font-size:24px;font-weight:700;color:#6B5D54;margin-bottom:24px;line-height:1.4}
+    .options{display:flex;flex-direction:column;gap:14px}
+    .option{padding:18px 16px;background:#F8F5F2;border:2px solid transparent;border-radius:14px;cursor:pointer;transition:all .25s;font-size:16px;color:#6B5D54}
+    .option:hover{background:#F4A6A0;color:#fff;transform:translateY(-2px);box-shadow:0 5px 15px rgba(244,166,160,.25)}
+    .option.selected{background:#F4A6A0;color:#fff;border-color:#E8A6A0}
+    @media (max-width:520px){.quiz-container{padding:20px}.question{font-size:20px}}
+  </style>
+</head>
+<body>
+  <div class="quiz-container">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="question-number" id="questionNumber">問題 1 / 5</div>
+    <div class="question" id="questionText">你喜歡什麼樣的社交場合？</div>
+    <div class="options" id="optionsContainer"></div>
+  </div>
+
+  <script src="./public/tracker.js"></script>
+  <script>
+    // 每題漸層背景
+    const BG_GRADS = [
+      'linear-gradient(160deg,#F7E6DC 0%, #EAE0D7 100%)',
+      'linear-gradient(160deg,#FDE2DF 0%, #F5E6E3 100%)',
+      'linear-gradient(160deg,#EAF2E9 0%, #E7EFEF 100%)',
+      'linear-gradient(160deg,#E8E6F8 0%, #ECE7F2 100%)',
+      'linear-gradient(160deg,#FFF1DB 0%, #F7E8D6 100%)',
+      'linear-gradient(160deg,#EFE6FF 0%, #EDE9F9 100%)'
+    ];
+    const setBg = (i)=> document.body.style.background = BG_GRADS[i % BG_GRADS.length];
+
+    // 題庫
+    const questions = [
+      { question:"你喜歡什麼樣的社交場合？",
+        options:[
+          { text:"大型派對，認識新朋友", score:{ extrovert:2, social:2 } },
+          { text:"小團體聚會，深度交流", score:{ introvert:2, thoughtful:2 } },
+          { text:"安靜的咖啡廳，一對一聊天", score:{ introvert:1, calm:2 } },
+          { text:"戶外活動，大家一起玩", score:{ extrovert:1, active:2 } }
+        ]
+      },
+      { question:"當你感到壓力時，你會？",
+        options:[
+          { text:"找朋友聊天，尋求支持", score:{ social:2, extrovert:1 } },
+          { text:"獨自思考，分析問題", score:{ introvert:2, analytical:2 } },
+          { text:"運動或做其他活動轉移注意力", score:{ active:2, practical:1 } },
+          { text:"聽音樂或看書放鬆", score:{ calm:2, introvert:1 } }
+        ]
+      },
+      { question:"你理想的工作環境是？",
+        options:[
+          { text:"開放式辦公室，團隊合作", score:{ social:2, collaborative:2 } },
+          { text:"獨立辦公室，專注工作", score:{ introvert:2, focused:2 } },
+          { text:"靈活的工作空間，可以移動", score:{ active:2, flexible:2 } },
+          { text:"安靜的圖書館或咖啡廳", score:{ calm:2, introvert:1 } }
+        ]
+      },
+      { question:"你如何做決定？",
+        options:[
+          { text:"快速決定，相信直覺", score:{ spontaneous:2, confident:1 } },
+          { text:"仔細分析所有選項", score:{ analytical:2, thoughtful:2 } },
+          { text:"詢問他人意見", score:{ social:2, collaborative:1 } },
+          { text:"考慮長期影響", score:{ thoughtful:2, strategic:2 } }
+        ]
+      },
+      { question:"你喜歡什麼樣的飲料？",
+        options:[
+          { text:"濃郁的咖啡，提神醒腦", score:{ energetic:2, focused:1 } },
+          { text:"溫和的茶，平靜心情", score:{ calm:2, thoughtful:1 } },
+          { text:"清爽的果汁，活力滿滿", score:{ active:2, energetic:1 } },
+          { text:"香甜的奶茶，溫暖舒適", score:{ social:1, comfortable:2 } }
+        ]
+      }
+    ];
+
+    const PROFILE_META = {
+      "珍珠奶茶":{ emoji:"🧋", tags:["可愛親和","社交高手"],
+        desc:"你就像珍珠奶茶一樣，外表甜美可愛，內心豐富多彩。你善於社交，喜歡與人互動，總是能帶給身邊的人快樂和溫暖。" },
+      "美式咖啡":{ emoji:"☕", tags:["直接純粹","效率至上"],
+        desc:"你就像美式咖啡一樣，直接而純粹。你喜歡簡單直接的生活方式，做事效率高，有自己的原則和堅持。" },
+      "綠茶":{ emoji:"🍵", tags:["清新沉穩","理性分析"],
+        desc:"你就像綠茶一樣，清新淡雅，內心平靜。你喜歡思考、善於分析，是一位可靠的傾聽者與建議者。" },
+      "果汁":{ emoji:"🧃", tags:["活力滿滿","樂於嘗新"],
+        desc:"你就像果汁一樣，充滿活力與正能量。你樂觀開朗，喜歡嘗試新事物，總能帶動周圍的氣氛。" }
+    };
+
+    // 狀態
+    let idx = 0, scores = {}, quizStart = Date.now();
+    const AUTO_NEXT_MS = 400;
+    const $ = s => document.querySelector(s);
+
+    window.addEventListener('DOMContentLoaded', ()=>{
+      window.Tracker?.init?.();
+      window.Tracker?.track?.('page_view',{ page:'quiz', title:'飲料人格測驗' });
+      render();
+    });
+
+    function render(){
+      const q = questions[idx];
+      setBg(idx);
+      $('#questionNumber').textContent = `問題 ${idx+1} / ${questions.length}`;
+      $('#questionText').textContent = q.question;
+      $('#progressFill').style.width = (idx/questions.length)*100 + '%';
+
+      const box = $('#optionsContainer');
+      box.innerHTML = '';
+      q.options.forEach((op,i)=>{
+        const el = document.createElement('div');
+        el.className='option';
+        el.textContent=op.text;
+        el.onclick = ()=>onPick(i, el);
+        box.appendChild(el);
+      });
+    }
+
+    function onPick(i, el){
+      document.querySelectorAll('.option').forEach(o=>o.classList.remove('selected'));
+      el.classList.add('selected');
+      window.Tracker?.track?.('option_select',{ question: idx+1, option:i, text:questions[idx].options[i].text });
+
+      // 記分
+      const picked = questions[idx].options[i];
+      Object.keys(picked.score).forEach(k => { scores[k] = (scores[k]||0) + picked.score[k]; });
+
+      // 自動下一題/結束
+      setTimeout(()=>{
+        idx++;
+        if(idx < questions.length){ render(); }
+        else{ finish(); }
+      }, AUTO_NEXT_MS);
+    }
+
+    function calcResultName(){
+      if((scores.social||0)>3) return '珍珠奶茶';
+      if((scores.analytical||0)>3) return '美式咖啡';
+      if((scores.calm||0)>3) return '綠茶';
+      return '果汁';
+    }
+
+    function finish(){
+      const name = calcResultName();
+      const meta = PROFILE_META[name];
+      const spent = Date.now() - quizStart;
+
+      // 存到 sessionStorage 給 result.html 使用
+      sessionStorage.setItem('quiz_result', JSON.stringify({
+        name, meta, scores, spent
+      }));
+
+      // ✅ 保存測驗結果到後端數據庫
+      window.Tracker?.saveResult?.(name, scores);
+
+      window.Tracker?.track?.('quiz_complete',{ result:name, time_spent:spent, scores });
+
+      // 跳到獨立結果頁
+      location.href = './result.html';
+    }
+  </script>
+</body>
+</html>
