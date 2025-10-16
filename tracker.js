@@ -1,8 +1,7 @@
 /**
- * 行為追蹤系統（本地 + Render 版本）
- * - 支援 /api/events、/api/results 與舊版 /api/track
- * - 自動偵測本地 / 雲端環境
- * - 具離線排隊、退避重試、頁面離開 keepalive/sendBeacon
+ * 行為追蹤系統（Render + 本地 + GitHub Pages 通用版）
+ * - 支援 /api/events、/api/results 與 /api/track
+ * - 自動偵測環境，具離線排隊、退避重試與 sendBeacon 傳送
  */
 (function () {
   const LS_KEYS = {
@@ -17,7 +16,7 @@
     const host = window.location.hostname;
     if (host.includes('github.io')) return 'https://mindtest-backend.onrender.com';
     if (host.includes('onrender.com')) return ''; // 同源部署
-    return 'http://localhost:3000'; // 本地開發
+    return 'http://localhost:3000';
   })();
 
   const nowISO = () => new Date().toISOString();
@@ -47,7 +46,6 @@
         maxBatchSize: 20,
         maxRetries: 5
       };
-
       this.userId = null;
       this.sessionId = null;
       this.isInitialized = false;
@@ -57,14 +55,12 @@
       this.backoffBase = 1200;
     }
 
-    configure(opts = {}) {
-      Object.assign(this.config, opts || {});
-    }
+    configure(opts = {}) { Object.assign(this.config, opts || {}); }
 
     init() {
       if (this.isInitialized) return;
 
-      // 建立 userId
+      // 使用者 ID
       let uid = localStorage.getItem(LS_KEYS.userId);
       if (!uid) {
         uid = `user_${Date.now()}_${rand(8)}`;
@@ -72,7 +68,7 @@
       }
       this.userId = uid;
 
-      // 建立 sessionId
+      // Session ID
       let sid = sessionStorage.getItem(SS_KEYS.sessionId);
       if (!sid) {
         sid = `sess_${Date.now()}_${rand(6)}`;
@@ -80,20 +76,14 @@
       }
       this.sessionId = sid;
 
-      // 載入未送出的事件
+      // 載入待送佇列
       try {
         this.queue = JSON.parse(localStorage.getItem(LS_KEYS.pending) || '[]');
-      } catch {
-        this.queue = [];
-      }
+      } catch { this.queue = []; }
 
       this.isInitialized = true;
-
-      // 定時 flush
       this.flushTimer = setInterval(() => this.flush(), this.config.flushIntervalMs);
-
       window.addEventListener('online', () => this.flush());
-
       const sendOnLeave = () => this.flush({ onUnload: true });
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') sendOnLeave();
@@ -129,7 +119,6 @@
 
     track(eventName, properties = {}) {
       if (!this.isInitialized) this.init();
-
       const payload = {
         event: eventName,
         ts: nowISO(),
@@ -145,7 +134,6 @@
         userAttributes: this._getUserAttrs(),
         properties
       };
-
       this.queue.push(payload);
       this._persistQueue();
 
@@ -161,7 +149,6 @@
 
       const batch = this.queue.splice(0, this.config.maxBatchSize);
       this._persistQueue();
-
       const body = JSON.stringify({ batch });
 
       try {
@@ -200,17 +187,20 @@
     }
 
     async _sendWithBestEffort(url, body, { onUnload } = {}) {
+      // ✅ 改成跨域帶 Cookie
+      const fetchOpts = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: !!onUnload,
+        credentials: 'include'  // ← 關鍵：確保 Render cookie 帶上
+      };
       if (onUnload && navigator.sendBeacon) {
         const blob = new Blob([body], { type: 'application/json' });
         return navigator.sendBeacon(url, blob);
       }
       try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-          keepalive: !!onUnload
-        });
+        const res = await fetch(url, fetchOpts);
         return res.ok;
       } catch {
         return false;
@@ -221,7 +211,8 @@
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(obj)
+        body: JSON.stringify(obj),
+        credentials: 'include' // 同樣確保 session_id cookie 帶上
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json().catch(() => ({}));
