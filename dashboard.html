@@ -67,7 +67,6 @@
   </div>
 
   <script>
-    // ✅ 自動偵測後端環境
     const API_BASE = (() => {
       const host = window.location.hostname;
       if (host.includes('localhost')) return 'http://localhost:3000';
@@ -77,7 +76,6 @@
     Chart.register(ChartDataLabels);
     let charts = {};
 
-    // 🧩 共用 fetch 函數
     async function fetchAPI(endpoint) {
       try {
         const res = await fetch(`${API_BASE}${endpoint}`);
@@ -90,7 +88,6 @@
       }
     }
 
-    // 📊 載入儀表板資料
     async function loadDashboardData() {
       const data = await fetchAPI('/api/dashboard');
       if (!data) return;
@@ -98,7 +95,6 @@
       updateCharts(data);
     }
 
-    // 🔄 載入實時資料
     async function loadRealtimeData() {
       const data = await fetchAPI('/api/realtime');
       if (!data) return;
@@ -106,22 +102,19 @@
       updateRecentEvents(data.recentEventList);
     }
 
-    // 🧮 更新統計卡
     function updateStats(d) {
-      document.getElementById('totalEvents').textContent = d.totalEvents?.[0]?.count || 0;
-      document.getElementById('totalUsers').textContent = d.totalUsers?.[0]?.count || 0;
-      document.getElementById('totalSessions').textContent = d.totalSessions?.[0]?.count || 0;
-      document.getElementById('todayEvents').textContent = d.todayEvents?.[0]?.count || 0;
-      document.getElementById('todayUsers').textContent = d.todayUsers?.[0]?.count || 0;
+      document.getElementById('totalEvents').textContent = d.totalEvents || 0;
+      document.getElementById('totalUsers').textContent = d.totalUsers || 0;
+      document.getElementById('totalSessions').textContent = d.totalSessions || 0;
+      document.getElementById('todayEvents').textContent = d.todayEvents || 0;
+      document.getElementById('todayUsers').textContent = d.todayUsers || 0;
     }
 
-    // 🔥 更新即時統計
     function updateRealtimeStats(d) {
-      document.getElementById('recentEvents').textContent = d.recentEvents?.[0]?.count || 0;
-      document.getElementById('onlineUsers').textContent = d.onlineUsers?.[0]?.count || 0;
+      document.getElementById('recentEvents').textContent = d.recentEvents || 0;
+      document.getElementById('onlineUsers').textContent = d.onlineUsers || 0;
     }
 
-    // 🧾 更新最近事件列表
     function updateRecentEvents(list) {
       const c = document.getElementById('recentEventList');
       if (!list || list.length === 0) {
@@ -131,13 +124,12 @@
       c.innerHTML = list.map(e => `
         <div class="event-item">
           <div class="event-name">${e.event_name}</div>
-          <div style="font-size:12px;color:#666;">${formatTime(e.timestamp)}・${e.user_id || e.session_id || '匿名'}</div>
+          <div style="font-size:12px;color:#666;">${formatTime(e.timestamp)}・${e.session_id || '匿名'}</div>
           <div style="font-size:12px;color:#999;">${e.page || ''}</div>
         </div>
       `).join('');
     }
 
-    // 🪄 更新所有圖表
     function updateCharts(data) {
       updateTopEventsChart(data.topEvents || []);
       updatePageViewsChart(data.pageViews || []);
@@ -145,7 +137,6 @@
       updateHourlyEventsChart(data.hourlyEvents || []);
     }
 
-    // === 以下四個圖表函數可沿用你原版本 ===
     function updateTopEventsChart(rows) {
       const ctx = document.getElementById('topEventsChart');
       if (charts.topEventsChart) charts.topEventsChart.destroy();
@@ -153,17 +144,10 @@
         type: 'bar',
         data: {
           labels: rows.map(r => r.event_name),
-          datasets: [{
-            data: rows.map(r => r.count),
-            backgroundColor: '#F4A6A0',
-            borderRadius: 6
-          }]
+          datasets: [{ data: rows.map(r => r.count), backgroundColor: '#F4A6A0', borderRadius: 6 }]
         },
         options: {
-          plugins: {
-            legend: { display: false },
-            datalabels: { color: '#fff', anchor: 'end', align: 'top' }
-          },
+          plugins: { legend: { display: false }, datalabels: { color: '#fff', anchor: 'end', align: 'top' } },
           scales: { y: { beginAtZero: true } }
         }
       });
@@ -174,13 +158,7 @@
       if (charts.pageViewsChart) charts.pageViewsChart.destroy();
       charts.pageViewsChart = new Chart(ctx, {
         type: 'pie',
-        data: {
-          labels: rows.map(r => r.page),
-          datasets: [{
-            data: rows.map(r => r.count),
-            backgroundColor: ['#F4A6A0','#FFD6A5','#FFB5E8','#B5EAD7','#C7CEEA']
-          }]
-        },
+        data: { labels: rows.map(r => r.page), datasets: [{ data: rows.map(r => r.count), backgroundColor: ['#F4A6A0','#FFD6A5','#FFB5E8','#B5EAD7','#C7CEEA'] }] },
         options: { plugins: { legend: { position: 'bottom' } } }
       });
     }
@@ -190,13 +168,7 @@
       if (charts.quizResultsChart) charts.quizResultsChart.destroy();
       charts.quizResultsChart = new Chart(ctx, {
         type: 'doughnut',
-        data: {
-          labels: rows.map(r => r.result_name),
-          datasets: [{
-            data: rows.map(r => r.count),
-            backgroundColor: ['#F4A6A0','#FFD6A5','#B5EAD7','#C7CEEA','#FFB5E8']
-          }]
-        },
+        data: { labels: rows.map(r => r.result_name), datasets: [{ data: rows.map(r => r.count), backgroundColor: ['#F4A6A0','#FFD6A5','#B5EAD7','#C7CEEA','#FFB5E8'] }] },
         options: { plugins: { legend: { position: 'bottom' } } }
       });
     }
@@ -206,26 +178,15 @@
       if (charts.hourlyEventsChart) charts.hourlyEventsChart.destroy();
       charts.hourlyEventsChart = new Chart(ctx, {
         type: 'line',
-        data: {
-          labels: rows.map(r => r.hour),
-          datasets: [{
-            data: rows.map(r => r.count),
-            label: '事件數',
-            fill: false,
-            borderColor: '#F4A6A0',
-            tension: 0.3
-          }]
-        },
+        data: { labels: rows.map(r => r.hour), datasets: [{ data: rows.map(r => r.count), label: '事件數', fill: false, borderColor: '#F4A6A0', tension: 0.3 }] },
         options: { plugins: { legend: { display: false } } }
       });
     }
 
-    // 🕒 時間格式化
     function formatTime(t) {
       return new Date(t).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
-    // ⚠️ 顯示錯誤
     function showError(msg) {
       const c = document.querySelector('.container');
       const d = document.createElement('div');
@@ -235,12 +196,11 @@
       setTimeout(() => d.remove(), 6000);
     }
 
-    // 🚀 初始化
     document.addEventListener('DOMContentLoaded', () => {
       loadDashboardData();
       loadRealtimeData();
-      setInterval(loadRealtimeData, 30000);  // 每30秒更新即時資料
-      setInterval(loadDashboardData, 300000); // 每5分鐘刷新整體資料
+      setInterval(loadRealtimeData, 30000);
+      setInterval(loadDashboardData, 300000);
     });
   </script>
 </body>
