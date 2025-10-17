@@ -24,6 +24,7 @@
       📊 測驗數據分析儀表板
     </h1>
 
+    <!-- 篩選 -->
     <div class="flex flex-wrap gap-4 items-center mb-6 p-4 bg-amber-50 rounded-lg shadow-inner">
       <div class="flex-grow">
         <label for="date_start" class="block text-sm font-medium text-gray-700">起始日期</label>
@@ -103,12 +104,16 @@
   </div>
 
   <script>
-    // ✅ 自動偵測 API 伺服器
+    // ✅ 自動偵測 API_BASE
     const API_BASE = (() => {
       const host = window.location.hostname;
       if (host.includes("localhost")) return "http://localhost:3000";
+      if (host.includes("github.io")) return "https://mindtest-backend.onrender.com";
+      if (host.includes("onrender.com")) return ""; // 同源部署
       return "https://mindtest-backend.onrender.com";
     })();
+
+    console.log("🔍 API_BASE:", API_BASE);
 
     let currentEvents = [], currentResults = [], activeTab = "events";
 
@@ -125,14 +130,14 @@
       }
     }
 
-    // ✅ 顯示錯誤
+    // ✅ 錯誤顯示
     function showError(message) {
       const msg = document.getElementById("error_message");
       msg.classList.remove("hidden");
       msg.innerHTML = `<p><strong>錯誤：</strong> ${message}</p>`;
     }
 
-    // ✅ 載入事件資料
+    // ✅ 載入事件
     async function loadEvents() {
       const start = document.getElementById("date_start").value;
       const end = document.getElementById("date_end").value;
@@ -147,7 +152,7 @@
       document.getElementById("event_loading_status").textContent = `成功載入 ${currentEvents.length} 條記錄。`;
     }
 
-    // ✅ 載入測驗結果
+    // ✅ 載入結果
     async function loadResults() {
       const start = document.getElementById("date_start").value;
       const end = document.getElementById("date_end").value;
@@ -162,7 +167,7 @@
       document.getElementById("result_loading_status").textContent = `成功載入 ${currentResults.length} 條記錄。`;
     }
 
-    // ✅ 時間格式化
+    // ✅ 時間格式
     function formatTimestamp(ts) {
       return ts ? new Date(ts).toLocaleString("zh-TW", {
         year: "numeric", month: "2-digit", day: "2-digit",
@@ -210,7 +215,7 @@
       });
     }
 
-    // ✅ Modal 控制
+    // ✅ Modal
     function showDetail(item, title) {
       document.getElementById("detail_modal_title").textContent = title;
       document.getElementById("detail_content").textContent = JSON.stringify(item, null, 2);
@@ -220,7 +225,7 @@
       document.getElementById("detail_modal").classList.remove("open");
     }
 
-    // ✅ Tab 切換
+    // ✅ Tabs
     function showTab(tab) {
       activeTab = tab;
       document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
@@ -231,14 +236,22 @@
       applyFilters();
     }
 
-    // ✅ 篩選器套用
+    // ✅ 套用篩選
     function applyFilters() {
       if (activeTab === "events") loadEvents();
       else loadResults();
     }
 
     // ✅ 初始化
-    document.addEventListener("DOMContentLoaded", () => showTab("events"));
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("🟢 Admin dashboard ready");
+      showTab("events");
+
+      // 檢查後端是否可連線
+      fetch(`${API_BASE}/api/health`)
+        .then(r => r.ok ? console.log("✅ 後端連線成功") : console.warn("⚠️ 後端不可用", r.status))
+        .catch(e => console.error("❌ 無法連線後端:", e));
+    });
   </script>
 </body>
 </html>
