@@ -75,23 +75,85 @@
   <script src="./config.js"></script>
   <script src="./tracker.js"></script>
   <script>
-    // 讀取 sessionStorage，沒有就回首頁
-    const raw = sessionStorage.getItem('quiz_result');
-    if(!raw){
-      location.replace('./index.html');
+    // 測驗結果元數據（與 quiz.html 保持一致）
+    const PROFILE_META = {
+      "珍珠奶茶":{ emoji:"🧋", tags:["可愛親和","社交高手"],
+        desc:"你就像珍珠奶茶一樣，外表甜美可愛，內心豐富多彩。你善於社交，喜歡與人互動，總是能帶給身邊的人快樂和溫暖。" },
+      "美式咖啡":{ emoji:"☕", tags:["直接純粹","效率至上"],
+        desc:"你就像美式咖啡一樣，直接而純粹。你喜歡簡單直接的生活方式，做事效率高，有自己的原則和堅持。" },
+      "綠茶":{ emoji:"🍵", tags:["清新沉穩","理性分析"],
+        desc:"你就像綠茶一樣，清新淡雅，內心平靜。你喜歡思考、善於分析，是一位可靠的傾聽者與建議者。" },
+      "果汁":{ emoji:"🧃", tags:["活力滿滿","樂於嘗新"],
+        desc:"你就像果汁一樣，充滿活力與正能量。你樂觀開朗，喜歡嘗試新事物，總能帶動周圍的氣氛。" }
+    };
+
+    // 初始化函數
+    async function initResultPage() {
+      // 優先讀取 URL 參數，其次讀取 localStorage，最後嘗試從後端獲取
+      const urlParams = new URLSearchParams(window.location.search);
+      const resultName = urlParams.get('r');
+      const scoresParam = urlParams.get('scores');
+      
+      let data = null;
+      
+      if (resultName) {
+        // 從 URL 參數讀取結果
+        const scores = scoresParam ? JSON.parse(decodeURIComponent(scoresParam)) : {};
+        data = {
+          name: decodeURIComponent(resultName),
+          meta: PROFILE_META[decodeURIComponent(resultName)] || PROFILE_META['珍珠奶茶'],
+          scores: scores,
+          spent: 0
+        };
+      } else {
+        // 從 localStorage 讀取
+        const raw = localStorage.getItem('quiz_result');
+        if(raw) {
+          data = JSON.parse(raw);
+        } else {
+          // 嘗試從後端獲取用戶最新的測驗結果
+          try {
+            const response = await fetch(window.API_CONFIG.getEndpoint('/api/user-results'), {
+              credentials: 'include'
+            });
+            if (response.ok) {
+              const userData = await response.json();
+              if (userData.results && userData.results.length > 0) {
+                const latestResult = userData.results[0];
+                data = {
+                  name: latestResult.result_name,
+                  meta: PROFILE_META[latestResult.result_name] || PROFILE_META['珍珠奶茶'],
+                  scores: latestResult.scores,
+                  spent: 0
+                };
+              }
+            }
+          } catch (error) {
+            console.log('無法從後端獲取結果:', error);
+          }
+          
+          // 如果都沒有數據，跳回首頁
+          if (!data) {
+            location.replace('./index.html');
+            return;
+          }
+        }
+      }
+
+      // 填資料
+      const meta = data.meta;
+      document.getElementById('emoji').textContent = meta.emoji;
+      document.getElementById('title').textContent = `你是「${data.name}」型！`;
+      document.getElementById('desc').textContent  = meta.desc;
+      document.getElementById('chips').innerHTML  = meta.tags.map(t=>`<span class="chip">${t}</span>`).join('');
     }
-    const data = raw ? JSON.parse(raw) : null;
 
-    // 填資料
-    const meta = data.meta;
-    document.getElementById('emoji').textContent = meta.emoji;
-    document.getElementById('title').textContent = `你是「${data.name}」型！`;
-    document.getElementById('desc').textContent  = meta.desc;
-    document.getElementById('chips').innerHTML  = meta.tags.map(t=>`<span class="chip">${t}</span>`).join('');
-
-    // Tracker（可選）
-    window.Tracker?.init?.();
-    window.Tracker?.track?.('page_view',{ page:'result', title:'飲料人格測驗 - 結果', result:data.name });
+    // 調用初始化函數
+    initResultPage().then(() => {
+      // Tracker（可選）
+      window.Tracker?.init?.();
+      window.Tracker?.track?.('page_view',{ page:'result', title:'飲料人格測驗 - 結果' });
+    });
 
     // 下滑提示：使用者一有滾動就消失
     const hint = document.getElementById('scrollHint');

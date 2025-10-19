@@ -159,8 +159,8 @@
       const meta = PROFILE_META[name];
       const spent = Date.now() - quizStart;
 
-      // 存到 sessionStorage 給 result.html 使用
-      sessionStorage.setItem('quiz_result', JSON.stringify({
+      // 存到 localStorage 給 result.html 使用（持久化存儲）
+      localStorage.setItem('quiz_result', JSON.stringify({
         name, meta, scores, spent
       }));
 
@@ -169,8 +169,11 @@
 
       window.Tracker?.track?.('quiz_complete',{ result:name, time_spent:spent, scores });
 
-      // 跳到獨立結果頁
-      location.href = './result.html';
+      // 跳到獨立結果頁（帶參數）
+      const resultUrl = new URL('./result.html', window.location.href);
+      resultUrl.searchParams.set('r', encodeURIComponent(name));
+      resultUrl.searchParams.set('scores', encodeURIComponent(JSON.stringify(scores)));
+      location.href = resultUrl.toString();
     }
   </script>
 </body>
