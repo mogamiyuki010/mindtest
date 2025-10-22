@@ -40,9 +40,9 @@
           eventsEndpoint: window.API_CONFIG ? window.API_CONFIG.getEndpoint('/api/events') : '/api/events',
           resultEndpoint: window.API_CONFIG ? window.API_CONFIG.getEndpoint('/api/results') : '/api/results',
           fallbackEndpoint: 'https://mindtest-backend.onrender.com/api/events', // RENDER 部署端點
-          flushIntervalMs: 8000,
-          maxBatchSize: 20,
-          maxRetries: 5
+          flushIntervalMs: 5000, // 減少間隔時間，更快發送數據
+          maxBatchSize: 10, // 減少批次大小，更快發送
+          maxRetries: 3 // 減少重試次數
         };
   
         this.userId = null;
@@ -63,6 +63,8 @@
       init() {
         if (this.isInitialized) return;
   
+        console.log('🚀 Tracker 初始化開始...');
+  
         // userId（長期）
         let uid = localStorage.getItem(LS_KEYS.userId);
         if (!uid) {
@@ -79,26 +81,43 @@
         }
         this.sessionId = sid;
   
+        console.log('👤 用戶 ID:', this.userId);
+        console.log('🔗 會話 ID:', this.sessionId);
+        console.log('🌐 API 端點:', this.config.eventsEndpoint);
+  
         // 載入尚未送出的事件
         try {
           this.queue = JSON.parse(localStorage.getItem(LS_KEYS.pending) || '[]');
-        } catch { this.queue = []; }
+          console.log('📦 待發送事件數量:', this.queue.length);
+        } catch (error) {
+          console.error('❌ 載入待發送事件失敗:', error);
+          this.queue = [];
+        }
   
         this.isInitialized = true;
   
         // 開始定時 flush
         this.flushTimer = setInterval(() => this.flush(), this.config.flushIntervalMs);
+        console.log('⏰ 定時發送間隔:', this.config.flushIntervalMs + 'ms');
   
         // 上線就試著 flush
-        window.addEventListener('online', () => this.flush());
+        window.addEventListener('online', () => {
+          console.log('🌐 網路恢復，嘗試發送數據...');
+          this.flush();
+        });
   
         // 頁面離開時用 sendBeacon/keepalive 送出
-        const sendOnLeave = () => this.flush({ onUnload: true });
+        const sendOnLeave = () => {
+          console.log('👋 頁面離開，發送數據...');
+          this.flush({ onUnload: true });
+        };
         window.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'hidden') sendOnLeave();
         });
         window.addEventListener('pagehide', sendOnLeave);
         window.addEventListener('beforeunload', sendOnLeave);
+        
+        console.log('✅ Tracker 初始化完成');
       }
   
       /** 取得使用者 ID / 會話 ID */
@@ -169,7 +188,12 @@
   
       /** 送出佇列事件（支援 onUnload 時的 sendBeacon/keepalive） */
       async flush(opts = {}) {
-        if (!this.queue.length) return;
+        if (!this.queue.length) {
+          console.log('📭 沒有待發送的事件');
+          return;
+        }
+  
+        console.log('📤 開始發送事件，數量:', this.queue.length);
   
         // 批次複製後清空（避免重複讀寫）
         const batch = this.queue.splice(0, this.config.maxBatchSize);
@@ -180,12 +204,17 @@
           Array.isArray(batch) ? { batch } : batch
         );
   
+        console.log('🌐 發送到端點:', this.config.eventsEndpoint);
+        console.log('📦 批次大小:', batch.length);
+  
         // 嘗試新版 /api/events（支援批次）
         try {
           const ok = await this._sendWithBestEffort(this.config.eventsEndpoint, body, opts);
           if (!ok) throw new Error('events endpoint fail');
+          console.log('✅ 事件發送成功');
           return;
-        } catch {
+        } catch (error) {
+          console.warn('⚠️ 主要端點失敗，嘗試備用端點:', error.message);
           // 退回舊版 /api/track：逐筆送
           for (const item of Array.isArray(batch) ? batch : [batch]) {
             try {
@@ -208,7 +237,9 @@
               });
               const ok = await this._sendWithBestEffort(this.config.fallbackEndpoint, single, opts);
               if (!ok) throw new Error('fallback endpoint fail');
+              console.log('✅ 備用端點發送成功');
             } catch (e) {
+              console.error('❌ 發送失敗:', e.message);
               // 送失敗：放回佇列尾端，啟動退避重試
               this.queue.push(item);
               this._persistQueue();
@@ -220,21 +251,44 @@
   
       /** 使用 sendBeacon / keepalive 的最佳努力送出 */
       async _sendWithBestEffort(url, body, { onUnload } = {}) {
+        console.log('📡 發送請求到:', url);
+        console.log('📦 請求體大小:', body.length, 'bytes');
+        
         // 1) 優先 sendBeacon（只能 POST、不可自訂 header）
         if (onUnload && navigator.sendBeacon) {
+          console.log('📡 使用 sendBeacon 發送');
           const blob = new Blob([body], { type: 'application/json' });
-          return navigator.sendBeacon(url, blob);
+          const result = navigator.sendBeacon(url, blob);
+          console.log('📡 sendBeacon 結果:', result);
+          return result;
         }
+        
         // 2) fetch with keepalive（瀏覽器支援即可在 unload 中送出）
         try {
+          console.log('📡 使用 fetch 發送');
           const res = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
             body,
-            keepalive: !!onUnload
+            keepalive: !!onUnload,
+            mode: 'cors',
+            credentials: 'include'
           });
+          
+          console.log('📡 響應狀態:', res.status, res.statusText);
+          console.log('📡 響應頭:', Object.fromEntries(res.headers.entries()));
+          
+          if (!res.ok) {
+            const errorText = await res.text().catch(() => '無法讀取錯誤信息');
+            console.error('❌ 響應錯誤:', res.status, errorText);
+          }
+          
           return res.ok;
-        } catch {
+        } catch (error) {
+          console.error('❌ 發送請求失敗:', error);
           return false;
         }
       }
