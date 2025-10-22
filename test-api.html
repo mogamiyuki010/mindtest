@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 連接測試</title>
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 API 連接測試工具</h1>
+    
+    <div class="test-section">
+        <h2>🌐 環境檢測</h2>
+        <button class="test-button" onclick="testEnvironment()">檢測環境</button>
+        <div id="env-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔗 API 連接測試</h2>
+        <button class="test-button" onclick="testHealth()">健康檢查</button>
+        <button class="test-button" onclick="testEvents()">事件 API</button>
+        <button class="test-button" onclick="testResults()">結果 API</button>
+        <div id="api-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>📊 Tracker 測試</h2>
+        <button class="test-button" onclick="testTracker()">初始化 Tracker</button>
+        <button class="test-button" onclick="testTrackEvent()">發送測試事件</button>
+        <button class="test-button" onclick="testSaveResult()">保存測試結果</button>
+        <div id="tracker-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔄 批量測試</h2>
+        <button class="test-button" onclick="runAllTests()">運行所有測試</button>
+        <div id="batch-result" class="result"></div>
+    </div>
+
+    <script src="./config.js"></script>
+    <script src="./tracker.js"></script>
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            element.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+        }
+        
+        function clearLog(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+        
+        async function testEnvironment() {
+            clearLog('env-result');
+            log('env-result', '🔍 檢測當前環境...', 'info');
+            
+            const hostname = window.location.hostname;
+            const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+            const isGitHubPages = hostname.includes('github.io');
+            
+            log('env-result', `📍 主機名: ${hostname}`, 'info');
+            log('env-result', `🏠 是否本地: ${isLocalhost}`, 'info');
+            log('env-result', `🌐 是否 GitHub Pages: ${isGitHubPages}`, 'info');
+            
+            if (window.API_CONFIG) {
+                const baseURL = window.API_CONFIG.getBaseURL();
+                const endpoint = window.API_CONFIG.getEndpoint('/api/health');
+                log('env-result', `🔗 API 基礎 URL: ${baseURL}`, 'info');
+                log('env-result', `🎯 健康檢查端點: ${endpoint}`, 'info');
+            } else {
+                log('env-result', '❌ API_CONFIG 未載入', 'error');
+            }
+        }
+        
+        async function testHealth() {
+            clearLog('api-result');
+            log('api-result', '🏥 測試健康檢查...', 'info');
+            
+            try {
+                const response = await fetch(window.API_CONFIG.getEndpoint('/api/health'), {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('api-result', `✅ 健康檢查成功: ${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    log('api-result', `❌ 健康檢查失敗: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log('api-result', `❌ 健康檢查錯誤: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testEvents() {
+            clearLog('api-result');
+            log('api-result', '📊 測試事件 API...', 'info');
+            
+            try {
+                const response = await fetch(window.API_CONFIG.getEndpoint('/api/events'), {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('api-result', `✅ 事件 API 成功: 獲取到 ${data.length} 個事件`, 'success');
+                } else {
+                    log('api-result', `❌ 事件 API 失敗: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log('api-result', `❌ 事件 API 錯誤: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testResults() {
+            clearLog('api-result');
+            log('api-result', '📈 測試結果 API...', 'info');
+            
+            try {
+                const response = await fetch(window.API_CONFIG.getEndpoint('/api/results'), {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('api-result', `✅ 結果 API 成功: 獲取到 ${data.length} 個結果`, 'success');
+                } else {
+                    log('api-result', `❌ 結果 API 失敗: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log('api-result', `❌ 結果 API 錯誤: ${error.message}`, 'error');
+            }
+        }
+        
+        function testTracker() {
+            clearLog('tracker-result');
+            log('tracker-result', '🚀 初始化 Tracker...', 'info');
+            
+            try {
+                if (window.Tracker) {
+                    window.Tracker.init();
+                    log('tracker-result', '✅ Tracker 初始化成功', 'success');
+                    log('tracker-result', `👤 用戶 ID: ${window.Tracker.getUserId()}`, 'info');
+                    log('tracker-result', `🔗 會話 ID: ${window.Tracker.getSessionId()}`, 'info');
+                } else {
+                    log('tracker-result', '❌ Tracker 未載入', 'error');
+                }
+            } catch (error) {
+                log('tracker-result', `❌ Tracker 初始化錯誤: ${error.message}`, 'error');
+            }
+        }
+        
+        function testTrackEvent() {
+            clearLog('tracker-result');
+            log('tracker-result', '📤 發送測試事件...', 'info');
+            
+            try {
+                if (window.Tracker) {
+                    window.Tracker.track('test_event', {
+                        test: true,
+                        timestamp: new Date().toISOString(),
+                        message: '這是一個測試事件'
+                    });
+                    log('tracker-result', '✅ 測試事件已發送', 'success');
+                } else {
+                    log('tracker-result', '❌ Tracker 未初始化', 'error');
+                }
+            } catch (error) {
+                log('tracker-result', `❌ 發送事件錯誤: ${error.message}`, 'error');
+            }
+        }
+        
+        function testSaveResult() {
+            clearLog('tracker-result');
+            log('tracker-result', '💾 保存測試結果...', 'info');
+            
+            try {
+                if (window.Tracker) {
+                    window.Tracker.saveResult('測試結果', {
+                        test: true,
+                        score: 100,
+                        timestamp: new Date().toISOString()
+                    });
+                    log('tracker-result', '✅ 測試結果已保存', 'success');
+                } else {
+                    log('tracker-result', '❌ Tracker 未初始化', 'error');
+                }
+            } catch (error) {
+                log('tracker-result', `❌ 保存結果錯誤: ${error.message}`, 'error');
+            }
+        }
+        
+        async function runAllTests() {
+            clearLog('batch-result');
+            log('batch-result', '🔄 開始批量測試...', 'info');
+            
+            // 測試環境
+            await testEnvironment();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 測試 API
+            await testHealth();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testEvents();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testResults();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 測試 Tracker
+            testTracker();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            testTrackEvent();
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            testSaveResult();
+            
+            log('batch-result', '✅ 批量測試完成', 'success');
+        }
+        
+        // 頁面載入時自動檢測環境
+        window.addEventListener('DOMContentLoaded', () => {
+            testEnvironment();
+        });
+    </script>
+</body>
+</html>
